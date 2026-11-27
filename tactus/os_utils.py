@@ -1,0 +1,495 @@
+"""Utilities for simple tasks on OS level."""
+
+import atexit
+import contextlib
+import glob
+import os
+import pathlib
+import re
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+from typing import List, Union
+
+from .logs import logger
+
+
+class Search:
+    """Search class."""
+
+    def __init__(self):
+        """Construct search class."""
+        return
+
+    @staticmethod
+    def find_files(
+        directory,
+        prefix="",
+        postfix="",
+        pattern="",
+        recursive=True,
+        onlyfiles=True,
+        fullpath=False,
+        olderthan=None,
+        inorder=False,
+    ) -> list:
+        """Find files in a directory.
+
+        Args:
+            directory (str): Directory to search in.
+            prefix (str, optional): Only find files with this prefix. Defaults to "".
+            postfix (str, optional): Only find files with the postfix. Defaults to "".
+            pattern (str, optional): Only find files with matching pattern.
+                Defaults to "".
+            recursive (bool, optional): Go into directories recursively.
+                Defaults to True.
+            onlyfiles (bool, optional): Show only files. Defaults to True.
+            fullpath (bool, optional): Give full path. Defaults to False. If
+                recursive=True, fullpath is given automatically.
+            olderthan (int, optional): Match only files older than X seconds from now.
+                Defaults to None.
+            inorder (bool, optional): Return sorted list of filenames. Defaults to False.
+
+        Returns:
+            list: List containing file names that matches criterias
+
+        Examples:
+            >>> files = find_files(
+                            '/foo/', prefix="", postfix="", recursive=False,
+                            onlyfiles=True, fullpath=True, olderthan=86400*100
+                        )
+        """
+        if recursive:
+            fullpath = False
+            files = []
+            for r, _d, f in os.walk(directory):  # r=root, d=directories, f=files
+                files.extend(
+                    os.path.join(r, file)
+                    for file in f
+                    if file.startswith(prefix) and file.endswith(postfix)
+                )
+
+        elif not recursive:
+            if onlyfiles:
+                files = [
+                    f
+                    for f in os.listdir(directory)
+                    if f.endswith(postfix)
+                    and f.startswith(prefix)
+                    and os.path.isfile(os.path.join(directory, f))
+                ]
+
+            elif not onlyfiles:
+                files = [
+                    f
+                    for f in os.listdir(directory)
+                    if f.endswith(postfix) and f.startswith(prefix)
+                ]
+
+        if pattern:
+            files = [f for f in files if re.search(pattern, f)]
+
+        if fullpath:
+            files = [os.path.join(directory, f) for f in files]
+
+        if olderthan is not None:
+            now = time.time()
+            tfiles = []
+            for f in files:
+                with contextlib.suppress(FileNotFoundError):
+                    if not fullpath:
+                        if os.path.getmtime(os.path.join(directory, f)) < (
+                            now - olderthan
+                        ):
+                            tfiles.append(f)
+                    elif os.path.getmtime(f) < (now - olderthan):
+                        tfiles.append(f)
+
+            files = tfiles
+
+        if inorder:
+            files = sorted(files)
+
+        return files
+
+
+def filepath_iterator(paths, filename_pattern="*"):
+    """Return iterator of paths to files given a list of file or directory paths.
+
+    Given a path or list of paths, yield Path objects corresponding to them.
+    If a path points to a directory, then the directory is searched recursively
+    and the paths to the files found in this process will be yielded.
+
+    Args:
+        paths (typing.Union[pathlib.Path, List[pathlib.Path], str, List[str]]):
+            A single path or a collection of paths.
+        filename_pattern (str, optional): Pattern used in the recursive glob in
+            order to select the names of the files to be yielded.
+            Defaults to "*".
+
+    Yields:
+        pathlib.Path: Path to located files.
+    """
+    if isinstance(paths, (str, Path)):
+        paths = [paths]
+
+    for path_ in paths:
+        path = Path(path_).expanduser().resolve()
+        if path.is_dir():
+            for subpath in path.rglob(filename_pattern):
+                if subpath.is_file():
+                    yield subpath
+        else:
+            yield path
+
+
+def tactusmakedirs(path: str | Path, unixgroup="", exist_ok=True, def_dir_mode=0o755):
+    """Create directories and change unix group as required.
+
+    For a given path the top directory that does not yet exist is searched for, created
+    and unix group is set, if required. Permissions are set such that all subdirectories
+    and new files inherit the unix group.
+
+    Args:
+        path (str | Path): directory path that should be created if it doesn't
+            already exist.
+        unixgroup (str, optional): unix group the newly created dirs should belong to.
+        exist_ok (boolean, optional): Define whether directories may already exist
+            or whether an error should be raised.
+        def_dir_mode(int, optional): Default directory persmission mode. Defaults to 0o755
+
+    Raises:
+        OSError: If cannot create the directory.
+
+    """
+    p = Path(path).resolve()
+
+    dir_mode = def_dir_mode
+    if unixgroup:
+        dir_mode = 0o2750
+
+    if p.parents[0].is_dir():
+        try:
+            os.makedirs(path, mode=dir_mode, exist_ok=exist_ok)
+            if unixgroup and (str(Path(path).group()) != str(unixgroup)):
+                shutil.chown(path, group=unixgroup)
+                # TODO: Check if we really need this permissive mask
+                os.chmod(path, mode=dir_mode)
+        except OSError as err:
+            raise OSError(f"Cannot create {path} properly") from err
+    else:
+        # check directory tree for top dir that has to be created
+        try:
+            idx = 0
+
+            while not p.parents[idx + 1].is_dir():
+                idx += 1
+
+            os.makedirs(p.parents[idx], mode=0o2750, exist_ok=exist_ok)
+            if unixgroup and str(p.parents[idx].group()) != str(unixgroup):
+                shutil.chown(p.parents[idx], group=unixgroup)
+                # TODO: Check if we really need this permissive mask
+                os.chmod(p.parents[idx], mode=0o2750)  # noqa S103
+            os.makedirs(path, exist_ok=True)
+        except OSError as err:
+            raise OSError(f"Cannot create {path} properly") from err
+
+
+def remove_empty_dirs(src, dry_run=False):
+    """Remove directories.
+
+    Recursively and permanently removes the specified directory,
+    and all of its empty subdirectories.
+
+    Args:
+        src (str or Path): Top search directory
+        dry_run (boolean): Flag for execution of cleaning or not
+
+    Returns:
+        found_files (boolean): True if any files found
+    """
+    cwd = os.getcwd()
+    src_dir = Path(src)
+    found_files = False
+    if not src_dir.exists():
+        return found_files
+
+    for path in src_dir.iterdir():
+        realpath = os.path.realpath(path)
+        if path.is_file() or realpath == cwd:
+            found_files = True
+            continue
+        found_files = remove_empty_dirs(path) or found_files
+    if found_files:
+        logger.debug(f"Keep:{src_dir}")
+    else:
+        logger.info(f"Remove:{src_dir}")
+        if not dry_run:
+            src_dir.rmdir()
+
+    return found_files
+
+
+def ping(host):
+    """Ping host.
+
+    Args:
+        host(str): Host to ping
+
+    Returns:
+        (boolean): True if host responded
+
+    """
+    cmd = ["ping", "-c", "1", host]
+    try:
+        subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+        return True
+    except subprocess.CalledProcessError:
+        return False
+
+
+def strip_off_mount_path(path: Union[str, Path]) -> Path:
+    """Strip off the mount path from a given path.
+
+    Assumptions:
+        - the path contains the user name as a directory.
+        - the parent of the user directory is of the format "<new-dir-name>" or
+          "%_<new-dir-name>_*", where "*" contains no underscore(s), "%" might
+          contain underscore(s)  and where the <new-dir-name> will be used as
+          the new parent directory name relative to the user directory.
+
+    Args:
+        path (Union[str, Path]): Path to strip off the mount path from.
+
+    Returns:
+        path: Path with the mount path stripped off.
+
+    Raises:
+        ValueError: If the parent of the user directory only contains 1 underscore.
+
+    Example:
+        >>> strip_off_mount_path("/etc/ecmwf/nfs/dh1_home_b/$USER/tactus/tactus")
+        Path("/home/$USER/tactus/tactus")
+        >>> strip_off_mount_path("/etc/ecmwf/nfs/dh1_10_perm_b/$USER/tactus")
+        Path("/perm/$USER/tactus")
+    """
+    file_parts = Path(path).parts
+    user = os.environ.get("USER")
+    if user is None:
+        return Path(path)
+
+    try:
+        index_of_user = file_parts.index(user)
+    except ValueError:
+        return Path(path)
+    parent_of_user = file_parts[max(0, index_of_user - 1)]
+    # Get number of underscores in parent_of_user
+    n_underscores = parent_of_user.count("_")
+
+    if n_underscores == 1:
+        raise ValueError(
+            "Parent of user directory must contain zero, two, or more than two "
+            + f"underscores, but found {n_underscores}. Path: {path}"
+        )
+
+    # Get near the end part of parent_of_user if it contains > 1 underscores
+    if n_underscores > 1:
+        parent_of_user_parts = parent_of_user.split("_")
+        parent_of_user = parent_of_user_parts[-2]
+
+    return Path(pathlib.os.sep, parent_of_user, *file_parts[index_of_user:])
+
+
+def resolve_path_relative_to_package(path: Path, ignore_errors: bool = False) -> Path:
+    """Resolve path relative to any sys.path entry.
+
+    If the path exists as is, return it. If not, derive a relative path by
+    stripping known sys.path prefixes, then search every sys.path entry for
+    that relative path. Raises an error if more than one candidate is found
+    to avoid silent ambiguity.
+
+    Args:
+        path (Path): Path to resolve.
+        ignore_errors (bool, optional): Option to ignore errors.
+            Defaults to False.
+
+    Returns:
+        Path: Original path (if exists locally), or resolved path relative to
+            a sys.path entry.
+
+    Raises:
+        FileNotFoundError: If it was impossible to determine path relative to package.
+        FileNotFoundError: If file does not exist locally or in the package directory.
+    """
+    path = path.expanduser().resolve()
+    if os.path.exists(path):
+        return path
+
+    # For each sys.path entry that is a prefix of the given path, derive the
+    # relative portion and search all sys.path entries for it.
+    candidates = set()
+    for sys_path_str in sys.path:
+        if not sys_path_str:
+            continue
+        try:
+            rel_path = path.relative_to(sys_path_str)
+        except ValueError:
+            continue
+
+        for search_path_str in sys.path:
+            if not search_path_str:
+                continue
+            candidate = Path(search_path_str) / rel_path
+            if candidate.exists():
+                candidates.add(candidate)
+
+    if len(candidates) > 1:
+        raise ValueError(
+            f"Ambiguous path resolution for {path}. "
+            "Multiple candidates found across sys.path entries:\n"
+            + "\n".join(f"  {c}" for c in sorted(candidates))
+        )
+    if len(candidates) == 1:
+        return next(iter(candidates))
+    if not ignore_errors:
+        raise FileNotFoundError(
+            f"File {path} not found locally or relative to any sys.path entry"
+        )
+    return path
+
+
+def list_files_join(folder, f_pattern):
+    """Read and return file names based on given pattern.
+
+    Args:
+        folder: path with file location
+        f_pattern: glob pattern
+
+    Returns:
+        list of files that should be joined
+    """
+    pattern_list = os.path.join(folder, f_pattern)
+    return glob.glob(pattern_list)
+
+
+def join_files(input_files: List[str], output_filepath: str):
+    """Joins multiple files into a single file.
+
+    Args:
+        input_files (List[str]): List of files to be joined/concatenated
+        output_filepath (str):   Output file
+    """
+    output_filename = os.path.basename(output_filepath)
+    with open(output_filename, "wb") as output_file:
+        for filename in input_files:
+            with open(filename, "rb") as input_file:
+                output_file.write(input_file.read())
+    shutil.move(output_filename, output_filepath)
+    logger.info(f"Created {output_filepath} out of files '{input_files}'")
+    lockfile = f"{output_filepath}.lock"
+    if os.path.exists(output_filepath) and os.path.exists(lockfile):
+        os.remove(lockfile)
+        logger.info(f"Removed lockfile: {lockfile}")
+
+
+def remove_ifexists(file, etime=sys.float_info.max):
+    """Utility function to be used for lockfiles."""
+    if os.path.exists(file):
+        mtime = os.path.getmtime(file) if etime != sys.float_info.max else 0
+        if mtime < etime:
+            logger.debug(f"Removing: {file}")
+            os.remove(file)
+
+
+class FileLock:
+    """Context manager for file locking using lockfiles."""
+
+    def _try_create_lockfile(self):
+        """Atomically try to create the lockfile.
+
+        Returns:
+            bool: True if the lockfile was created by this call, False if it
+                already existed (i.e. another process/thread holds the lock).
+        """
+        try:
+            # O_CREAT | O_EXCL is atomic on POSIX and Windows: the call
+            # fails with FileExistsError if the file already exists, so
+            # no two processes can both succeed.
+            fd = os.open(
+                self.lockfile,
+                os.O_CREAT | os.O_EXCL | os.O_WRONLY,
+                0o644,
+            )
+        except FileExistsError:
+            return False
+
+        try:
+            with os.fdopen(fd, "w") as f:
+                f.write(f"Lockfile for {self.filepath} created at {time.ctime()}")
+        except Exception:
+            remove_ifexists(self.lockfile)
+            raise
+
+        atexit.register(remove_ifexists, self.lockfile)
+        return True
+
+    def _delete_lockfile(self):
+        """Delete lockfile for a given file."""
+        remove_ifexists(self.lockfile)
+
+    def _acquire(self):
+        """Atomically wait for and acquire the lockfile.
+
+        Raises:
+            TimeoutError: If the lock could not be acquired within
+                ``self.timeout`` seconds.
+        """
+        start_time = time.time()
+        while not self._try_create_lockfile():
+            elapsed_time = time.time() - start_time
+            if elapsed_time > self.timeout:
+                raise TimeoutError(
+                    f"Timeout: Lockfile {self.lockfile} still exists"
+                    + f" after {self.timeout} seconds."
+                )
+            logger.info(
+                f"Lockfile {self.lockfile} exists. Waiting for it to be removed..."
+            )
+            time.sleep(self.check_interval)
+
+    def __init__(
+        self,
+        filepath: str,
+        timeout: int = 600,
+        check_interval: int = 10,
+        delete_existing: bool = False,
+    ):
+        """Initialize FileLock.
+
+        Args:
+            filepath (str): Path to the file that is being created/modified.
+                            The lockfile will be named as {filepath}.lock.
+            timeout (int, optional): Maximum time to wait for the lockfile to be removed,
+                in seconds. Defaults to 600 (10 minutes).
+            check_interval (int, optional): Time interval between checks for the lockfile,
+                in seconds. Defaults to 10.
+            delete_existing (bool, optional): Whether to  delete an existing lockfile.
+        """
+        self.filepath = filepath
+        self.lockfile = f"{filepath}.lock"
+        self.timeout = timeout
+        self.check_interval = check_interval
+        self.delete_existing = delete_existing
+
+    def __enter__(self):
+        """Enter the runtime context related to this object."""
+        if self.delete_existing:
+            remove_ifexists(self.lockfile)
+
+        self._acquire()
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        """Exit the runtime context related to this object."""
+        self._delete_lockfile()

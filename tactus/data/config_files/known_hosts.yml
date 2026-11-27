@@ -1,0 +1,19 @@
+atos_bologna:
+  hostname: "ac\\d-\\d\\d\\d"
+lumi:
+  hostname: ["uan\\d\\d", "nid\\d+"]
+freja:
+  env:
+    SNIC_RESOURCE: "freja"
+linda:
+  env:
+    SMHI_DIST: "linda\\d+"
+  hostname: ".*.ad.smhi.se"
+leonardo:
+  hostname: ".*leonardo.*"
+belenos:
+  hostname: "belenos"
+fahrenheit:
+  hostname: "fahrenheit\\d+"
+rhel9pc:
+  hostname: "met2wks\\d+"

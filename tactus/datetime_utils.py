@@ -1,0 +1,358 @@
+#!/usr/bin/env python3
+"""Implement helper routines to deal with dates and times."""
+
+from datetime import datetime, timedelta, timezone
+from typing import List, Tuple, Union
+
+import dateutil.parser
+import isodate
+from dateutil.relativedelta import relativedelta
+from dateutil.utils import default_tzinfo
+
+from .aux_types import QuasiConstant
+
+
+class DatetimeConstants(QuasiConstant):
+    """Datetime-related constants."""
+
+    # The regex in a json schema's "pattern" must use JavaScript syntax (ECMA 262). See
+    # https://json-schema.org/understanding-json-schema/reference/regular_expressions.html
+    ISO_8601_TIME_DURATION_REGEX = (
+        "^P(?!$)(\\d+Y)?(\\d+M)?(\\d+W)?(\\d+D)?"
+        + "(T(?=\\d+[HMS])(\\d+H)?(\\d+M)?(\\d+S)?)?$"
+    )
+    DEFAULT_SHIFT = timedelta(0)
+
+
+def as_datetime(obj):
+    """Convert obj to string, parse into datetime and add UTC timezone iff naive."""
+    return default_tzinfo(dateutil.parser.parse(str(obj)), tzinfo=timezone.utc)
+
+
+def as_julian(yyyymmdd):
+    """Convert a date in YYYYMMDD format to a Julian Day Number.
+
+    Args:
+        yyyymmdd (int or str): Date in YYYYMMDD format.
+
+    Returns:
+        int: Julian Day Number corresponding to the given date at midnight.
+    """
+    date = datetime.strptime(str(yyyymmdd), "%Y%m%d").date()
+    return date.toordinal() + 1721425  # Julian Day Number at midnight
+
+
+def as_timedelta(obj) -> timedelta:
+    """Convert obj to string and parse as duration."""
+    if isinstance(obj, timedelta):
+        return obj
+
+    return isodate.parse_duration(str(obj))
+
+
+def dt2str(dt):
+    """Convert timdelta object to file name suitable string.
+
+    Args:
+        dt (timedelta object): duration
+
+    Returns:
+        duration (str): string representation of duration
+                        suitable for FA files
+
+    """
+    h = int(dt.seconds / 3600) + int(dt.days * 24)
+    m = int((dt.seconds % 3600 - dt.seconds % 60) / 60)
+    s = int(dt.seconds % 60)
+
+    return f"{h:04d}:{m:02d}:{s:02d}"
+
+
+def since_str(datetime: datetime, now: datetime) -> str:
+    """Convert a datetime to a human-readable string indicating how long ago it was.
+
+    Args:
+        datetime (datetime): The datetime object.
+        now (datetime): The current datetime object.
+
+    Returns:
+        str: A human-readable string indicating how long ago datetime now was
+    """
+    timestamp = int((now - datetime).total_seconds())
+    if timestamp < 60:
+        return "Now"
+    if timestamp < 3600:
+        return f"{int(timestamp / 60)} min ago"
+    if timestamp < 3600 * 24:
+        hours = int(timestamp / 3600)
+        if hours == 1:
+            return "1 hour ago"
+        return f"{hours} hours ago"
+    return f"updated on {datetime}"
+
+
+def check_syntax(output_settings: Union[Tuple[str], List[str]], length: int):
+    """Check syntax of output_settings.
+
+    Args:
+        output_settings (Union[Tuple[str], List[str]]): Specifies the output steps
+        length (integer): length to check on
+
+    Raises:
+        SystemExit: General system handler
+
+    """
+    for x in output_settings:
+        if x.count(":") != length:
+            raise SystemExit(
+                f"Invalid argument {output_settings} for output_settings.\n"
+                "Please provide single time increment as a string "
+                "or a list of 'starttime:endtime:interval' choices"
+            )
+
+
+def expand_output_settings(
+    output_settings: Union[str, Tuple[str], List[str]], forecast_range: str
+) -> List[List[timedelta]]:
+    """Expand the output_settings coming from config.
+
+    Args:
+        output_settings (Union[str, Tuple[str], List[str]]):
+            Specifies the output steps
+        forecast_range (str): Forecast range in duration syntax
+
+    Returns:
+        sections (List[List[timedelta]]) : List of output subsections.
+            Can be empty in case of empty output_settings
+
+    Raises:
+        RuntimeError: Handle erroneous time increment
+    """
+    zero_increment = as_timedelta("PT0H")
+    output_intervals = []
+    if isinstance(output_settings, str):
+        check_syntax([output_settings], 0)
+        # Infer the output intervals from the forecast range and output settings
+        if output_settings:
+            if as_timedelta(output_settings) == zero_increment:
+                output_intervals = [":".join(["PT0H", "PT0H", "PT1H"])]
+            else:
+                output_intervals = [":".join(["PT0H", forecast_range, output_settings])]
+        else:
+            return output_intervals
+    elif isinstance(output_settings, (tuple, list)):
+        check_syntax(output_settings, 2)
+        output_intervals = output_settings
+
+    # Check for zero size time increments
+    for interval in output_intervals:
+        if as_timedelta(interval.split(":")[2]) == zero_increment:
+            raise RuntimeError(f"Zero size time increments not allowed:{interval}")
+
+    # Convert the output intervals to a list of lists of timedelta objects
+    return [
+        [as_timedelta(item) for item in interval.split(":")]
+        for interval in output_intervals
+    ]
+
+
+def oi2dt_list(
+    output_settings: Union[str, Tuple[str], List[str]], forecast_range: str
+) -> List[timedelta]:
+    """Build list of output occurences.
+
+    Args:
+        output_settings (Union[str, Tuple[str], List[str]]):
+            Specifies the output steps
+        forecast_range (str): Forecast range in duration syntax
+
+    Returns:
+        dt (List[timedelta]) : Sorted list of output occurences
+    """
+    sections = expand_output_settings(output_settings, forecast_range)
+
+    output_dt = set()
+    current_dt: timedelta()
+    forecast_timedelta = as_timedelta(forecast_range)
+    for start, end, step in sections:
+        current_dt = start
+        while current_dt <= end and current_dt <= forecast_timedelta:
+            output_dt.add(current_dt)
+            current_dt += step
+
+    return sorted(output_dt)
+
+
+def cycle_offset(
+    basetime,
+    bdcycle,
+    bdcycle_start=DatetimeConstants.DEFAULT_SHIFT,
+    bdshift=DatetimeConstants.DEFAULT_SHIFT,
+):
+    """Calculcate offset from a reference time.
+
+    Args:
+        basetime (datetime): Reference time
+        bdcycle (timedelta): Interval between cycles
+        bdcycle_start (timedelta): Time of day when bdcycle starts
+        bdshift (timedelta): shift of boundary usage
+
+    Returns:
+        timedelta : a timdelta object of the offset
+
+    """
+    reftime = basetime.hour * 3600 + basetime.minute * 60 + basetime.second
+    bdcycle_shift = (
+        reftime - bdcycle_start.total_seconds() % bdcycle.total_seconds()
+    ) % bdcycle.total_seconds()
+    final_shift = bdcycle_shift + int(bdshift.total_seconds())
+    return timedelta(seconds=final_shift)
+
+
+def get_decade(dt) -> str:
+    """Return the decade given a datetime object."""
+    # Extract month and day from datetime object
+    dtg_mm = int(dt.month)
+    dtg_dd = int(dt.day)
+
+    # Determine decades_mm and decades_dd based on dtg_dd
+    if dtg_dd < 9:
+        decades_mm = dtg_mm
+        decades_dd = 5
+    elif 8 < dtg_dd < 19:
+        decades_mm = dtg_mm
+        decades_dd = 15
+    elif 18 < dtg_dd < 29:
+        decades_mm = dtg_mm
+        decades_dd = 25
+    else:
+        decades_mm = dtg_mm + 1
+        if decades_mm == 13:
+            decades_mm = 1
+        decades_dd = 5
+
+    decades_mm = f"{decades_mm:02d}"
+    decades_dd = f"{decades_dd:02d}"
+
+    return f"{decades_mm}{decades_dd}"
+
+
+def get_decadal_list(dt_start, dt_end) -> list:
+    """Return a list of dates for which decadal pgd files have to be created."""
+    # check decade of start and end of period
+    dt_start0 = dt_start.replace(hour=0, minute=0, second=0)
+    dt_end0 = dt_end.replace(hour=0, minute=0, second=0)
+    start_decade = get_decade(dt_start0)
+    end_decade = get_decade(dt_end0)
+    ndays = (dt_end0 - dt_start0).days
+
+    decades = {}
+    decades[start_decade] = dt_start0
+    if start_decade != end_decade or ndays > 350:
+        # More than one decade is covered by period.
+        for x in range(1, (dt_end0 - dt_start0).days + 1, 1):
+            date = dt_start0 + as_timedelta(f"P{x}D")
+            decade = get_decade(date)
+            if decade not in decades:
+                decades[decade] = date
+    return list(decades.values())
+
+
+def get_month_list(start, end, extend=False) -> list:
+    """Get list of months between two given dates (input as string)."""
+    start = as_datetime(start)
+    end = as_datetime(end)
+
+    def count_months(dt):
+        return dt.month + 12 * dt.year
+
+    month_list = [
+        (start + relativedelta(months=x)).month
+        for x in range(min(count_months(end) - count_months(start) + 1, 12))
+    ]
+
+    if extend:
+        last_month = month_list[0] - 1
+        if last_month == 0:
+            last_month = 12
+        next_month = month_list[-1] + 1
+        if next_month == 13:
+            next_month = 1
+
+        month_list.insert(0, last_month)
+        month_list.append(next_month)
+
+    return month_list
+
+
+def evaluate_date(date: str, reference_date=None) -> str:
+    """Parses an ISO 8601 datetime and/or duration and returns the computed datetime.
+
+    - If the input is a datetime (e.g., "2025-03-19T00:00:00Z"), it returns it as-is.
+    - If the input includes a duration (e.g., "2025-03-19T00:00:00Z/-P1D"), it applies
+      the duration to the datetime.
+    - If the input is only a duration (e.g., "-P1D"), it applies it to today's midnight
+      (UTC).
+
+    Args:
+        date (str): An ISO 8601 datetime, duration, or both.
+        reference_date (str): An ISO 8601 datetime, duration, or both.
+
+    Returns:
+        str: The computed datetime in ISO format.
+    """
+    if "/" in date:
+        datetime_part, duration_part = date.split("/")
+        return (
+            (
+                isodate.parse_datetime(datetime_part)
+                + isodate.parse_duration(duration_part)
+            )
+            .isoformat(timespec="seconds")
+            .replace("+00:00", "Z")
+        )
+
+    if date.startswith(("P", "-P")):
+        if reference_date is None:
+            today_midnight = datetime.now(timezone.utc).replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
+            _reference_date = today_midnight
+        else:
+            _reference_date = as_datetime(evaluate_date(reference_date))
+        return (
+            (_reference_date + isodate.parse_duration(date))
+            .isoformat(timespec="seconds")
+            .replace("+00:00", "Z")
+        )
+
+    return (
+        isodate.parse_datetime(date).isoformat(timespec="seconds").replace("+00:00", "Z")
+    )
+
+
+def split_date(dt, template=("%Y", "%m", "%d", "%H")):
+    """Split datetime object with strftime.
+
+    Args:
+        dt (datetime): Reference time
+        template (list): List of strings with strfmt arguments
+
+    Returns:
+        A list of extracted strings
+
+    """
+    return [dt.strftime(t) for t in template]
+
+
+def td2min(td):
+    """Return a timedelta object value in minutes and as string.
+
+    Args:
+        td (timedelta): Timedelta object
+
+    Returns:
+        A string of nearest representation of td in minutes
+
+    """
+    return str(int(td.total_seconds() / 60))

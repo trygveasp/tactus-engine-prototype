@@ -1,0 +1,228 @@
+[project]
+  name = "tactus"
+  version = "1.5.0"
+  description = "The Tactus scripting system."
+  readme = "README.md"
+  requires-python = ">=3.10,<3.13"
+  license = {text = "MIT"}
+  authors = [{name = "ACCORD"}]
+  keywords = ["forecasting", "tactus", "weather"]
+  classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+  ]
+  dependencies = [
+    "arpifs_listings @ git+https://git@github.com/UMR-CNRM/arpifs_listings.git@master",
+    "boto3>=1.42.15",
+    "dateutils>=0.6.12",
+    "dicttoxml>=1.0.0",
+    "ecbundle==2.6.0",
+    "eccodes==2.45",
+    "eccodeslib==2.45.4.11",
+    "f90nml>=1.4.3",
+    "fastjsonschema==2.18.1",
+    "frozendict>=2.4.7",
+    "geohash @ git+https://github.com/ACCORD-NWP/geohash.git@v1.1",
+    "gitpython>=3.1.30",
+    "grib2sqlite @ git+https://github.com/ACCORD-NWP/grib2sqlite.git@v0.2.0",
+    "humanize>=4.8.0",
+    "isodate>=0.6.1",
+    "json-schema-for-humans>=1.5.1",
+    "json2tab @ git+https://github.com/ACCORD-NWP/json2tab.git@master",
+    "jsonref>=1.1.0",
+    "loguru>=0.7.1",
+    "numexpr>=2.8.4",
+    "numpy>=1.22.4",
+    "omegaconf>=2.4",
+    "pandas>=1.4.0,<3.0.0",
+    "pydantic>=2.9.2",
+    "pyfdb==0.1.3",
+    "pyproj>=3.3.0,!=3.5.0",
+    "pysurfex>=0.1.2",
+    "pyyaml>=6.0",
+    "thenamelisttool @ git+https://github.com/UMR-CNRM/thenamelisttool.git",
+    "toml-formatter @ git+https://github.com/ACCORD-NWP/toml-formatter.git",
+    "tomli>=2.0.1",
+    "tomlkit>=0.12.1",
+    "troika @ git+https://github.com/ecmwf/troika.git",
+    "urllib3<2",
+    "utci @ git+https://github.com/ACCORD-NWP/utci.git@0.1.0",
+    "xmltodict>=0.14.2",
+  ]
+
+[project.urls]
+  "Bug Tracker" = "https://github.com/ACCORD-NWP/tactus/issues"
+  Documentation = "https://ACCORD-NWP.github.io/tactus"
+  Homepage = "https://github.com/ACCORD-NWP/tactus"
+  Repository = "https://github.com/ACCORD-NWP/tactus"
+
+[project.scripts]
+  tactus = "tactus.__main__:main"
+
+[dependency-groups]
+  dev = ["pre-commit>=3.0.4", "ruff (>=0.15.10,<0.16.0)"]
+  doc = [
+    "jsonref>=1.1.0",
+    "myst-parser>=2.0.0",
+    "sphinx>=7.2.6",
+    "sphinx-rtd-theme>=1.3.0",
+  ]
+  test = [
+    "pytest>=7.2.2",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.7.0",
+    "pytest-profiling>=1.7.0",
+    "pytest-timeout>=2.1.0",
+    "pytest-xdist>=3.2.0",
+  ]
+
+[build-system]
+  requires = ["poetry-core >= 1.0.0"]
+  build-backend = "poetry.core.masonry.api"
+
+# Linter configs
+[tool.check-wheel-contents]
+  ignore = ["W002"]
+
+[tool.poetry]
+  include = [{path = "tactus/data/**/*", format = ["sdist", "wheel"]}]
+
+# pytest configs
+[tool.pytest.ini_options]
+  addopts = "-v --failed-first --cov-report=term-missing --cov-report=term:skip-covered --cov-report=xml:.coverage.xml --cov=./"
+  log_cli_level = "INFO"
+  testpaths = ["tests/smoke", "tests/unit"]
+
+[tool.ruff]
+  line-length = 90
+  preview = true
+  target-version = "py39"
+
+[tool.ruff.lint]
+  select = [
+    "A",
+    "ARG",
+    "B",
+    "BLE",
+    "C4",
+    "C90",
+    "D",
+    "DOC",
+    "E",
+    "ERA",
+    "EXE",
+    "F",
+    "G",
+    "I",
+    "N",
+    "PD",
+    "PERF",
+    "PIE",
+    "PL",
+    "PT",
+    "Q",
+    "RET",
+    "RSE",
+    "RUF",
+    "S",
+    "SIM",
+    "SLF",
+    "T20",
+    "W",
+  ]
+  ignore = [
+    "ARG001",
+    "B901",
+    "B909",
+    "C419",
+    "C901",
+    "D105",
+    "DOC201",
+    "DOC402",
+    "DOC501",
+    "DOC502",
+    "EXE001",
+    "N805",
+    "PLR0904",
+    "PLR0913",
+    "PLR0914",
+    "PLR0915",
+    "PLR0917",
+    "PLR0912",
+    "PLR1702",
+    "PLW1514",
+    "PLR6201",
+    "PLR2004",
+    "PLR6301",
+    "PLC0206",
+    "PLR6104",
+    "PLW0108",
+    "PLC0415",
+    "RUF012",
+    "RUF043",
+    "RUF045",
+    "RUF052",
+    "RUF059",
+    "RUF067",
+    "RUF069",
+    "S404",
+    "S602",
+    "S603",
+    "S605",
+    "SIM103",
+    "SIM113",
+    "SIM115",
+    "T201",
+  ]
+
+[tool.ruff.lint.per-file-ignores]
+  # S101: Use of `assert` detected
+  "scheduler.py" = ["T201"]
+  "tests/**/*.py" = [
+    "D100",
+    "D101",
+    "D102",
+    "D103",
+    "D104",
+    "D105",
+    "D106",
+    "D107",
+    "DOC201",
+    "E501",
+    "S101",
+    "SLF001",
+    "PLR0904",
+    "PLR6201",
+    "PLR6301",
+    "PLW1514",
+    "PLC2701",
+    "PLR6104",
+  ]
+
+[tool.ruff.lint.pydocstyle]
+  convention = "google"
+
+[tool.tombi.format.rules]
+  indent-style = "space"
+  indent-sub-tables = false
+  indent-table-key-value-pairs = true
+  indent-width = 2
+  inline-table-brace-space-width = 0
+  line-width = 90
+
+[tool.toml-formatter]
+  indentation = 2
+  section_order_overrides = [
+    "^general$",
+    "general.*",
+    "^project$",
+    "project.*",
+    "build-system",
+    "^tool.poetry$",
+    "tool.poetry.*",
+  ]

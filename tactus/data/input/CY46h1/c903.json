@@ -1,0 +1,27 @@
+{
+  "climate": {
+    "path": "@CLIMDIR@",
+    "files": {
+      "@FPDOMAIN@_@MM@": "Const.Clim.@MM@"
+    }
+  },
+  "host_model_static_files": {
+    "path": "@BDDIR@",
+    "files": {
+      "ICMSHMARSINIT": "ICMSH_@BDMEMBER@+@L@",
+      "ICMSHMARS": "ICMSH_@BDMEMBER@+@L@",
+      "ICMGGMARSINIT": "ICMGG_@BDMEMBER@+@L@",
+      "ICMGGMARS": "ICMGG_@BDMEMBER@+@L@",
+      "ICMUAMARSINIT": "ICMUA_@BDMEMBER@+@L@",
+      "ICMUAMARS": "ICMUA_@BDMEMBER@+@L@"
+    }
+  },
+  "host_model_files": {
+    "path": "@BDDIR@",
+    "files": {
+      "ICMSHMARS+@NNN@": "ICMSH_@BDMEMBER@+@L@",
+      "ICMGGMARS+@NNN@": "ICMGG_@BDMEMBER@+@L@",
+      "ICMUAMARS+@NNN@": "ICMUA_@BDMEMBER@+@L@"
+    }
+  }
+}

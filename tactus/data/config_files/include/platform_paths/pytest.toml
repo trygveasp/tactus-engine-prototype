@@ -1,0 +1,3 @@
+[platform]
+  archive_root = "@SCRATCH@/@SYS_NAME@/@CASE@/archive"
+  scratch = "@HOME@/@USER@"

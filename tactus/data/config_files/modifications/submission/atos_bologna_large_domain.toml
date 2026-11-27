@@ -1,0 +1,59 @@
+[submission.gnu.BATCH]
+  MEM = "#SBATCH --mem=64GB"
+  WALLTIME = "#SBATCH --time=03:00:00"
+
+[submission.task_exceptions.AddCalculatedFields.BATCH]
+  WALLTIME = "#SBATCH --time=00:30:00"
+
+[submission.task_exceptions.C903.ENV]
+  DR_HOOK_SIGNALS = -1
+
+[submission.task_exceptions.CreateGrib.BATCH]
+  WALLTIME = "#SBATCH --time=03:00:00"
+
+[submission.task_exceptions.E923Monthly.BATCH]
+  MEM = "#SBATCH --mem=32GB"
+
+[submission.task_exceptions.Forecast]
+  # This is optimised for the DKCOEXP domain
+  NPROC = 182
+  NPROC_IO = 10
+  NPROCX = 13
+  NPROCY = 14
+  OMP_NUM_THREADS = "2"
+  WRAPPER = "srun @TACTUS_HOME@/data/config_files/include/submission/omp_wrapper"
+
+[submission.task_exceptions.Forecast.BATCH]
+  CPUSPERTASK = "#SBATCH --cpus-per-task=2"
+  HYPERTHREAD = "#SBATCH --hint=nomultithread"
+  NODES = "#SBATCH --nodes=3"
+  NTASKS = "#SBATCH --ntasks-per-node=64"
+  WALLTIME = "#SBATCH --time=08:00:00"
+
+[submission.task_exceptions.Forecast.ENV]
+  KMP_AFFINITY = "granularity=core,scatter"
+  KMP_BLOCKTIME = "12"
+  OMP_STACKSIZE = "4G"
+
+[submission.task_exceptions.IOmerge.BATCH]
+  WALLTIME = "#SBATCH --time=08:00:00"
+
+[submission.task_exceptions.Pgd.BATCH]
+  NODES = "#SBATCH --nodes=4"
+  NTASKS = "#SBATCH --ntasks=32"
+  WALLTIME = "#SBATCH --time=03:00:00"
+
+[submission.task_exceptions.Prep.BATCH]
+  NODES = "#SBATCH --nodes=2"
+  NTASKS = "#SBATCH --ntasks=32"
+  WALLTIME = "#SBATCH --time=00:50:00"
+
+[submission.task_exceptions.Topography.BATCH]
+  MEM = "#SBATCH --mem=32GB"
+
+[submission.types.gnu.BATCH]
+  MEM = "#SBATCH --mem=64GB"
+  WALLTIME = "#SBATCH --time=03:00:00"
+
+[suite_control]
+  n_io_merge = 1

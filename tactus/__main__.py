@@ -1,0 +1,65 @@
+#!/usr/bin/env python3
+"""Program's entry point."""
+
+import contextlib
+import datetime
+import os
+import sys
+
+from . import GeneralConstants
+from .argparse_wrapper import get_args_parser
+from .config_parser import ConfigParserDefaults, ConfigPaths, ParsedConfig
+from .host_actions import TactusHost
+from .logs import LoggerHandlers, log_elapsed_time, logger
+
+# Enable logger if the project is being used as an application
+logger.enable(GeneralConstants.PACKAGE_NAME)
+
+
+@log_elapsed_time()
+def main(argv=None):
+    """Program's main routine."""
+    if argv is None:
+        argv = sys.argv[1:]
+
+    args = get_args_parser().parse_args(argv)
+
+    # Commands that manage their own config (e.g. "test") skip standard config loading
+    if getattr(args, "standalone_command", False):
+        args.run_command(args=args)
+        return
+
+    # Evaluate tactus host and config paths
+    tactus_host = TactusHost().detect_tactus_host()
+    with contextlib.suppress(AttributeError):
+        if args.config_data_dir is not None:
+            for config_data_dir in args.config_data_dir[::-1]:
+                ConfigPaths.CONFIG_DATA_SEARCHPATHS.insert(0, config_data_dir)
+    config = ParsedConfig.from_file(
+        args.config_file,
+        json_schema=ConfigParserDefaults.MAIN_CONFIG_JSON_SCHEMA,
+        host=tactus_host,
+    )
+
+    with contextlib.suppress(KeyError):
+        # Reset default loglevel if specified in the config
+        logger.configure(
+            handlers=LoggerHandlers(default_level=config["general.loglevel"])
+        )
+
+    config = config.copy(
+        update={
+            "genesis": {
+                "command": GeneralConstants.PACKAGE_NAME + " " + " ".join(argv),
+                "package": GeneralConstants.PACKAGE_NAME,
+                "version": GeneralConstants.VERSION,
+                "time": datetime.datetime.now().isoformat(timespec="seconds"),
+                "user": os.environ.get("USER"),
+            }
+        }
+    )
+    args.run_command(args=args, config=config)
+
+
+if __name__ == "__main__":
+    main()

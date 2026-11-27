@@ -1,0 +1,2 @@
+[troika]
+  troika = "@TACTUS_HOME@/../.conda/bin/troika"

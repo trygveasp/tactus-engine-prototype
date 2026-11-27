@@ -1,0 +1,12 @@
+[general.times]
+  start = "-P1D"
+
+[submission.task_exceptions.PgdFilterTownFrac.ENV]
+  ECF_TRIES = 15
+
+[suite_control]
+  do_archiving = false
+  max_static_data_tasks = 2
+
+[boundaries]
+  fix_snow_layer = false

@@ -1,0 +1,181 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Platform Section, defined in files under include/platform_paths",
+  "description": "TACTUS platform specific path settings",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "archive_types": {
+      "description": "Methods available for archiving",
+      "type": "array",
+      "default": [
+        "compress",
+        "copy",
+        "move",
+        "scp"
+      ],
+      "items": {
+        "type": "string",
+        "enum": [
+          "compress",
+          "copy",
+          "ecfs",
+          "fdb",
+          "move",
+          "scp"
+        ]
+      }
+    },
+    "ecoclim_data_path": {
+      "type": "string",
+      "description": "Path to the ECOCLIMAP-II data"
+    },
+    "tactus_home": {
+      "type": "string",
+      "description": "Path to the tactus code, normally no need to change",
+      "default": "set-by-the-system"
+    },
+    "da_const_dir": {
+      "type": "string",
+      "description": "Path to data assimilation static data",
+      "da_const_dir": "@STATIC_DATA@/BATOR"
+    },
+    "pgd_data_path": {
+      "type": "string",
+      "description": "Path to PGD input data"
+    },
+    "soilgrid_data_path": {
+      "type": "string",
+      "description": "Path to solgrid input data"
+    },
+    "global_sfcdir": {
+      "type": "string",
+      "description": "Path to global IFS surface data",
+      "default": ""
+    },
+    "topo_data_path": {
+      "type": "string",
+      "description": "Path to topography input data directory"
+    },
+    "topo_source": {
+      "type": "string",
+      "description": "Topography data source type",
+      "default": "gmted2010",
+      "enum": [
+        "gmted2010",
+        "gmted_eur",
+        "gtopo30",
+        "glo90"
+      ]
+    },
+    "ecosg_data_path": {
+      "type": "string",
+      "description": "Path to ECOCLIMAP SG data"
+    },
+    "climdata": {
+      "type": "string",
+      "description": "Macro used in other platform paths"
+    },
+    "static_data": {
+      "type": "string",
+      "description": "Macro used in other platform paths"
+    },
+    "e923_data": {
+      "type": "string",
+      "description": "Path to e923 input data"
+    },
+    "obs_dir": {
+      "type": "string",
+      "description": "Path to observations",
+      "default": "@CASEDIR@/observations/@YYYY@/@MM@/@DD@/@HH@"
+    },
+    "ncdir": {
+      "type": "string",
+      "description": "Path to ECrad NetCDF data"
+    },
+    "references_folder": {
+      "type": "string",
+      "description": "Path to references checker input",
+      "default": "@SCRATCH@/@SYS_NAME@/references_folder"
+    },
+    "references_generation_folder": {
+      "type": "string",
+      "description": "Path to references checker generation folder",
+      "default": "@SCRATCH@/@SYS_NAME@/generated_references"
+    },
+    "rrtm_dir": {
+      "type": "string",
+      "description": "Path to RRTM input data"
+    },
+    "rttov_coefdir": {
+      "type": "string",
+      "description": "Path to RTTOV_COEF input data"
+    },
+    "scratch": {
+      "type": "string",
+      "description": "Path used as macro for e.g. wrk and other directories."
+    },
+    "task_name": {
+      "type": "string",
+      "description": "Placeholder macro."
+    },
+    "flake_dir": {
+      "type": "string",
+      "description": "Path to climate PGD dir."
+    },
+    "albnir_soil_dir": {
+      "type": "string",
+      "description": "Path to near-infrared spectrum soil data."
+    },
+    "albnir_veg_dir": {
+      "type": "string",
+      "description": "Path to near-infrared spectrum vegetation data."
+    },
+    "albvis_soil_dir": {
+      "type": "string",
+      "description": "Path to visible soil spectrum data."
+    },
+    "albvis_veg_dir": {
+      "type": "string",
+      "description": "Path to visible spectrum vegetation data."
+    },
+    "install_dir": {
+      "type": "string",
+      "description": "Install location"
+    },
+    "lai_dir": {
+      "type": "string",
+      "description": "TBA"
+    },
+    "osm_data_eu": {
+      "type": "string",
+      "description": "Directory containing OSM data for Europe"
+    },
+    "tree_height_dir": {
+      "type": "string",
+      "description": "Path to tree_height data."
+    },
+    "windfarm_path": {
+      "type": "string",
+      "description": "Path to wind farm parameterisation input data."
+    },
+    "uv_cache_dir": {
+      "type": "string",
+      "description": "Path to uv cache dir used to install some plug-ins."
+    },
+    "eclipse_data_dir": {
+      "type": "string",
+      "description": "Path to sun/moon position as used for eclipses.",
+      "default": "@STATIC_DATA@/climate/eclipse"
+    },
+    "archive_root": {
+      "type": "string",
+      "description": "Path to the main archive directory"
+    },
+    "unix_group": {
+      "type": "string",
+      "description": "Default unix group for directories created by tactus, leave empty to use default group of user.",
+      "default": ""
+    }
+  }
+}

@@ -1,0 +1,8 @@
+[boundaries.ifs]
+  selection = "IFSENS"
+
+[eps.general]
+  members = "0:7"
+
+[eps.member_settings.boundaries.ifs]
+  bdmember = "0:7"
